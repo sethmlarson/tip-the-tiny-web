@@ -36,8 +36,8 @@ def linear_revision_directives(context, revision, directives):
         # default branch with incrementation
         last_rev_id = int(head_revision.lstrip("0"))
         new_rev_id = last_rev_id + 1
-    # fill zeros up to 10 digits: 1 -> 0000000001
-    migration_script.rev_id = "{0:010}".format(new_rev_id)
+    # fill zeros up to 4 digits: 1 -> 0001
+    migration_script.rev_id = "{0:04}".format(new_rev_id)
 
 
 def run_migrations_offline() -> None:
