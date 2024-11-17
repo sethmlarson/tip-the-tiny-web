@@ -17,7 +17,7 @@ class Creator(BaseModel):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     slug: Mapped[str] = mapped_column()
-    display_name: Mapped[int] = mapped_column()
+    display_name: Mapped[str] = mapped_column()
     web_url: Mapped[str] = mapped_column()
     feed_url: Mapped[Optional[str]] = mapped_column()
     payment_methods: Mapped[list["PaymentMethod"]] = relationship(

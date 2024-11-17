@@ -23,7 +23,7 @@ def upgrade() -> None:
         "creator",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("slug", sa.String(), nullable=False),
-        sa.Column("display_name", sa.Integer(), nullable=False),
+        sa.Column("display_name", sa.String(), nullable=False),
         sa.Column("web_url", sa.String(), nullable=False),
         sa.Column("feed_url", sa.String(), nullable=True),
         sa.PrimaryKeyConstraint("id"),

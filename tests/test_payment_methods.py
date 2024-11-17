@@ -4,7 +4,7 @@ from app import Creator, GitHubSponsorsPaymentMethod
 def test_github_payment_method(test_db_session):
     creator = Creator(
         slug="python-software-foundation",
-        display_name="Python-Software-Foundation",
+        display_name="Python Software Foundation",
         web_url="https://python.org/psf-landing",
     )
     gh = GitHubSponsorsPaymentMethod(
