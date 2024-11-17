@@ -4,8 +4,9 @@ Simple script which imports Creators from an OPML file.
 
 import re
 
-import app
 import opml
+
+import app
 
 with open("/home/sethmlarson/sethmlarson.dev/archive/feeds.opml") as f:
     feeds_opml = opml.OpmlDocument.loads(f.read())
