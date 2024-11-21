@@ -1,7 +1,7 @@
 import urllib.parse
 from typing import Optional
 
-from sqlalchemy import ForeignKey, Table, create_engine
+from sqlalchemy import ForeignKey, create_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship
 
 db_engine = create_engine("sqlite:///app.sqlite", echo=True)
@@ -16,10 +16,10 @@ class Creator(BaseModel):
     __tablename__ = "creators"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    slug: Mapped[str] = mapped_column()
-    display_name: Mapped[str] = mapped_column()
-    web_url: Mapped[str] = mapped_column()
-    feed_url: Mapped[Optional[str]] = mapped_column()
+    slug: Mapped[str] = mapped_column(nullable=False)
+    display_name: Mapped[str] = mapped_column(nullable=False)
+    web_url: Mapped[str] = mapped_column(nullable=False)
+    feed_url: Mapped[Optional[str]] = mapped_column(default=None)
     payment_methods: Mapped[list["PaymentMethod"]] = relationship(
         back_populates="creator", cascade="all, delete-orphan"
     )
@@ -62,8 +62,8 @@ class GitHubSponsorsPaymentMethod(PaymentMethod):
     __tablename__ = "payment_methods_github_sponsors"
 
     id: Mapped[int] = mapped_column(ForeignKey("payment_methods.id"), primary_key=True)
-    github_id: Mapped[int] = mapped_column()
-    github_login: Mapped[str] = mapped_column()
+    github_id: Mapped[int] = mapped_column(nullable=False)
+    github_login: Mapped[str] = mapped_column(nullable=False)
 
     __mapper_args__ = {"polymorphic_identity": "payment_methods_github_sponsors"}
 
@@ -74,3 +74,20 @@ class GitHubSponsorsPaymentMethod(PaymentMethod):
     @property
     def html_url(self) -> str:
         return f"https://github.com/sponsors/{urllib.parse.quote(self.github_login)}"
+
+
+class PatreonPaymentMethod(PaymentMethod):
+    __tablename__ = "payment_methods_patreon"
+
+    id: Mapped[int] = mapped_column(ForeignKey("payment_methods.id"), primary_key=True)
+    patreon_creator_slug: Mapped[str] = mapped_column(nullable=False)
+
+    __mapper_args__ = {"polymorphic_identity": "payment_methods_patreon"}
+
+    @property
+    def display_name(self) -> str:
+        return "Patreon"
+
+    @property
+    def html_url(self) -> str:
+        return f"https://patreon.com/c/{urllib.parse.quote(self.patreon_creator_slug)}"
