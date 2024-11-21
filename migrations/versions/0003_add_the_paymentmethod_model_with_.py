@@ -30,7 +30,7 @@ def upgrade() -> None:
         sa.Column("minimum_one_time_payment_amount", sa.Integer(), nullable=False),
         sa.ForeignKeyConstraint(
             ["creator_id"],
-            ["creator.id"],
+            ["creators.id"],
         ),
         sa.PrimaryKeyConstraint("id"),
     )

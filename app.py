@@ -1,7 +1,7 @@
 import urllib.parse
 from typing import Optional
 
-from sqlalchemy import ForeignKey, create_engine
+from sqlalchemy import ForeignKey, Table, create_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship
 
 db_engine = create_engine("sqlite:///app.sqlite", echo=True)
@@ -13,7 +13,7 @@ class BaseModel(DeclarativeBase):
 
 
 class Creator(BaseModel):
-    __tablename__ = "creator"
+    __tablename__ = "creators"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     slug: Mapped[str] = mapped_column()
@@ -30,7 +30,7 @@ class PaymentMethod(BaseModel):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     type: Mapped[str] = mapped_column()
-    creator_id: Mapped[int] = mapped_column(ForeignKey("creator.id"))
+    creator_id: Mapped[int] = mapped_column(ForeignKey("creators.id"))
     creator: Mapped["Creator"] = relationship(back_populates="payment_methods")
 
     supports_payment_comments: Mapped[bool] = mapped_column(default=False)
@@ -49,6 +49,10 @@ class PaymentMethod(BaseModel):
         """
 
     @property
+    def display_name(self) -> str:
+        raise NotImplementedError()
+
+    @property
     def html_url(self) -> str:
         """Return the web URL for the creator's payment method"""
         raise NotImplementedError()
@@ -62,6 +66,10 @@ class GitHubSponsorsPaymentMethod(PaymentMethod):
     github_login: Mapped[str] = mapped_column()
 
     __mapper_args__ = {"polymorphic_identity": "payment_methods_github_sponsors"}
+
+    @property
+    def display_name(self) -> str:
+        return "GitHub Sponsors"
 
     @property
     def html_url(self) -> str:
