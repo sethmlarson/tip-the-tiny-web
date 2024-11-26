@@ -2,3 +2,5 @@
 
 sqlalchemy
 pyopml
+flask
+gunicorn
