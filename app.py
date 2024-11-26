@@ -1,3 +1,4 @@
+import enum
 import urllib.parse
 from datetime import UTC, datetime
 from typing import Optional
@@ -75,6 +76,33 @@ class Creator(BaseModel):
     payment_methods: Mapped[list["PaymentMethod"]] = relationship(
         back_populates="creator", cascade="all, delete-orphan"
     )
+    supporters: Mapped[list["SupporterToCreator"]] = relationship(
+        back_populates="creator"
+    )
+
+
+class Supporter(BaseModel):
+    __tablename__ = "supporters"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    supported_creators: Mapped[list["SupporterToCreator"]] = relationship()
+    budget_per_month: Mapped[int] = mapped_column(nullable=False, default=0)
+    payments: Mapped[list["Payment"]] = relationship(back_populates="supporter")
+
+
+class SupporterToCreator(BaseModel):
+    __tablename__ = "supporter_to_creator"
+
+    supporter_id: Mapped[int] = mapped_column(
+        ForeignKey("supporters.id"), primary_key=True
+    )
+    supporter: Mapped["Supporter"] = relationship(back_populates="supported_creators")
+    creator_id: Mapped[int] = mapped_column(ForeignKey("creators.id"), primary_key=True)
+    creator: Mapped["Creator"] = relationship(back_populates="supporters")
+
+    want_to_pay: Mapped[bool] = mapped_column(nullable=False, default=False)
+    minimum_payment_per_month: Mapped[int] = mapped_column(nullable=False, default=0)
+    payment_amount_outstanding: Mapped[int] = mapped_column(nullable=False, default=0)
 
 
 class PaymentMethod(BaseModel):
@@ -153,21 +181,37 @@ class Payment(BaseModel):
     created_at: Mapped[datetime] = mapped_column(
         type_=TzAwareDatetime, nullable=False, default=utcnow()
     )
+    paid_at: Mapped[datetime | None] = mapped_column(
+        type_=TzAwareDatetime,
+        nullable=True,
+        default=None,
+    )
     payment_amount: Mapped[int] = mapped_column(nullable=False)
 
     payment_method: Mapped[PaymentMethod] = relationship(back_populates="payments")
     payment_method_id: Mapped[int] = mapped_column(
         ForeignKey("payment_methods.id"), nullable=False
     )
+    supporter: Mapped["Supporter"] = relationship(back_populates="payments")
+    supporter_id: Mapped[int] = mapped_column(
+        ForeignKey("supporters.id"), nullable=False
+    )
 
 
 @web.route("/")
 def index():
-    creators = db.query(Creator).all()
+    supporter = db.query(Supporter).first()
+    supporter_to_creators = (
+        db.query(SupporterToCreator)
+        .where(SupporterToCreator.supporter_id == supporter.id)
+        .all()
+    )
     creator_to_patreons = {}
     for patreon_payment in db.query(PatreonPaymentMethod).all():
         creator_to_patreons[patreon_payment.creator_id] = patreon_payment
 
     return render_template(
-        "index.html", creators=creators, patreons=creator_to_patreons
+        "index.html",
+        supporter_to_creators=supporter_to_creators,
+        patreons=creator_to_patreons,
     )

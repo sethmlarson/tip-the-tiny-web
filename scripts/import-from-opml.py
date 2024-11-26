@@ -18,20 +18,28 @@ def slugify(text: str):
 
 
 def main():
+    supporter = app.Supporter()
+    app.db.add(supporter)
     for outline in feeds_opml.outlines:
-        app.db.add(
-            app.Creator(
-                display_name=outline.text,
-                slug=slugify(outline.text),
-                web_url=outline.html_url,
-                feed_url=outline.xml_url or None,
-            )
+        creator = app.Creator(
+            display_name=outline.text,
+            slug=slugify(outline.text),
+            web_url=outline.html_url,
+            feed_url=outline.xml_url or None,
         )
+        supporter_to_creator = app.SupporterToCreator(
+            creator=creator,
+            supporter=supporter,
+        )
+        app.db.add(creator)
+        app.db.add(supporter_to_creator)
+
     matt = (
         app.db.query(Creator)
         .where(Creator.slug == "canned-fish-files-by-matthew-carlson")
         .first()
     )
+    matt.supporters
     app.db.add(
         app.PatreonPaymentMethod(creator=matt, patreon_creator_slug="MatthewCarlson")
     )
