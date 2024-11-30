@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ creator.display_name }}</h1>
+<p>
+    Website: <a href="{{ creator.web_url }}">{{ creator.web_url }}</a>
+    {% if creator.feed_url %}
+    <br>RSS Feed: <a href="{{ creator.feed_url }}">{{ creator.feed_url }}</a>
+    {% endif %}
+</p>
+{% if supporter_to_creator %}
+<p>
+    <h2>Supporting</h2>
+
+</p>
+{% endif %}
+<p>
+    <h2>Payment Methods</h2>
+<ul>
+{% for payment_method in creator.payment_methods %}
+<li>{{ payment_method.display_name }}: {{ payment_method.html_url }}</li>
+{% endfor %}
+</ul>
+</p>
+{% endblock %}

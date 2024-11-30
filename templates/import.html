@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Import new URL</h1>
+<p>
+    <form>
+    <input id="input-url" type="url" name="url" value="" autocomplete="off"/>
+    <br>
+    <label for="input-url">What URL do you want to support?</label>
+    <br><br>
+    <input id="input-type-creator" type="radio" name="type" value="" autocomplete="off" checked/>
+    <label for="input-type-creator">Creator URL</label>
+
+    <input id="input-type-content" type="radio" name="type" value="" autocomplete="off" />
+    <label for="input-type-content">Content URL</label>
+    <br><br>
+    <input id="input-display-name" type="text" name="display-name" value="" autocomplete="off" />
+    <br><label for="input-display-name">Display Name</label>
+    <br><br>
+    <input type="submit"/>
+</form>
+</p>
+{% endblock %}
