@@ -259,33 +259,51 @@ class Payment(BaseModel):
 
 
 def calculate_next_budget_alloc(supporter: Supporter) -> BudgetAllocation | None:
-    recent_budget_alloc = (
-        db.query(BudgetAllocation)
-        .where(BudgetAllocation.supporter_id == supporter.id)
-        .order_by(BudgetAllocation.created_at.asc())
-        .first()
-    )
-    if recent_budget_alloc is None:
-        # This guarantees that if someone clicks the "Distribute"
-        # button on their first day, it distributes exactly their
-        # monthly budget to every creator instead of zero.
-        last_allocated_at = supporter.created_at - timedelta(days=30)
-    else:
-        last_allocated_at = recent_budget_alloc.created_at
+    with db.begin(nested=True):
+        last_budget_alloc = (
+            db.query(BudgetAllocation)
+            .where(BudgetAllocation.supporter_id == supporter.id)
+            .order_by(BudgetAllocation.created_at.desc())
+            .first()
+        )
+        if last_budget_alloc is None:
+            # This guarantees that if someone clicks the "Distribute"
+            # button on their first day, it distributes exactly their
+            # monthly budget to every creator instead of zero.
+            alloc_amount = supporter.budget_per_month
+        else:
+            last_allocated_at = last_budget_alloc.created_at
+            now_in_utc = datetime.now(tz=UTC)
+            budget_per_day = int(supporter.budget_per_month * 12 // 360)
+            days_since_last_alloc = (now_in_utc - last_allocated_at).total_seconds() / (
+                24 * 60 * 60
+            )
+            alloc_amount = int(budget_per_day * days_since_last_alloc)
 
-    now_in_utc = datetime.now(tz=UTC)
-    budget_per_day = int(supporter.budget_per_month * 12 // 365)
-    days_since_last_alloc = (now_in_utc - last_allocated_at).total_seconds() / (
-        24 * 60 * 60
-    )
-    alloc_amount = int(budget_per_day * days_since_last_alloc)
-    if alloc_amount < 1:
-        return None
+        # No money to allocate!
+        if alloc_amount <= 0:
+            return None
 
-    return BudgetAllocation(
-        supporter_id=supporter.id,
-        allocation_amount=alloc_amount,
-    )
+        number_of_supported_creators = (
+            db.query(SupporterToCreator)
+            .where(
+                SupporterToCreator.supporter_id == supporter.id,
+                SupporterToCreator.want_to_pay,
+            )
+            .count()
+        )
+        # Don't allocate if less than a cent per
+        # creator or no supported creators.
+        if (
+            number_of_supported_creators > alloc_amount
+            or number_of_supported_creators == 0
+        ):
+            return None
+
+        return BudgetAllocation(
+            supporter_id=supporter.id,
+            allocation_amount=alloc_amount,
+        )
 
 
 def distribute_budget_alloc(
@@ -305,93 +323,27 @@ def distribute_budget_alloc(
             .order_by(SupporterToCreator.payment_amount_outstanding.asc())
             .all()
         )
+
         # Not yet paying any creators, abort!
         if not supporter_to_creators:
             return
 
         # Calculate how much budget we're allocating per creator.
-        budget_remaining = budget_alloc.allocation_amount
-        budget_per_creator = int(budget_remaining // len(supporter_to_creators))
+        number_of_creators = len(supporter_to_creators)
+        budget_per_creator = int(budget_alloc.allocation_amount // number_of_creators)
 
-        # Minimum 1 cent, we distribute to balances until the pot is gone.
-        if budget_per_creator <= 0:
-            budget_per_creator = 1
+        # Less than a cent per creator? Abort!
+        if budget_per_creator < 1:
+            return
 
-        budget_allocated_to_creators = 0
+        # Distribute the budget
         for supporter_to_creator in supporter_to_creators:
-            # We've spent every cent, we are only gathering
-            # next outstanding at this point.
-            if budget_allocated_to_creators >= budget_remaining:
-                budget_per_creator = 0
-
-            # Calculate what a creator's next 'balance' will be
-            # given the new distribution of budget.
             supporter_to_creator.payment_amount_outstanding += budget_per_creator
 
+        # Commit the BudgetAllocation to the record
+        # after updating how much we actually distributed.
+        budget_alloc.allocation_amount = budget_per_creator * number_of_creators
         db.add(budget_alloc)
-        db.commit()
-
-
-def calculate_next_payments(supporter: Supporter) -> None:
-    with db.begin(nested=True):
-        # Delete all existing planned payments first.
-        (
-            db.query(Payment)
-            .where(Payment.supporter_id == supporter.id, Payment.state == "next")
-            .delete()
-        )
-
-        # Order Supporters by outstanding payments so those
-        # with the most balance get the first attempt to get paid.
-        creator_with_next_outstanding = sorted(
-            creator_with_next_outstanding, key=lambda x: x[1], reverse=True
-        )
-
-        # There are three payment sweeps:
-        # 1: Try to assign outstanding amounts to 'tiers'
-        # 2: TODO: Try to pay one-time-payments to fill budget
-        # 3: TODO: Pay ahead if there's remaining unpaid budget.
-
-        # Sweep 1: Assign amounts to tiers.
-        for supporter_to_creator, next_outstanding in creator_with_next_outstanding:
-            # Find all possible payment configurations.
-            # First sweep tries to assign to tiers.
-            # Second sweep tries to fill in gaps w/
-            # one-time payments.
-            creator_is_paid = False
-            for payment_method in supporter_to_creator.creator.payment_methods:
-                supported_payment_amounts = sorted(
-                    payment_method.reify().supported_payment_amounts(),
-                    reverse=True,
-                )
-                for payment_amount in supported_payment_amounts:
-                    if (
-                        payment_amount <= next_outstanding
-                        and payment_amount <= budget_remaining
-                    ):
-                        payment = Payment(
-                            supporter_id=supporter.id,
-                            payment_method_id=payment_method.id,
-                            state="next",
-                            payment_amount=payment_amount,
-                        )
-                        next_outstanding -= payment_amount
-                        budget_remaining -= payment_amount
-                        db.add(payment)
-
-                        # We've paid this creator, now we move on.
-                        creator_is_paid = True
-                        break
-
-                # for payment_method in ...
-                if creator_is_paid:
-                    break
-
-            # If there's any leftover or overpay then we save that
-            # to the creator's record for next time.
-            if next_outstanding != 0:
-                supporter_to_creator.payment_amount_outstanding = next_outstanding
-
         db.commit()
 
 
@@ -400,18 +352,12 @@ def index():
     supporter = db.query(Supporter).options(joinedload(Supporter.payments)).first()
     supporter_to_creators = (
         db.query(SupporterToCreator)
-        .join(Creator)
-        .options(joinedload(SupporterToCreator.creator))
+        .join(Creator, onclause=SupporterToCreator.creator_id == Creator.id)
+        .options(
+            joinedload(SupporterToCreator.creator).joinedload(Creator.payment_methods)
+        )
         .where(SupporterToCreator.supporter_id == supporter.id)
         .all()
-    )
-    supporter_to_creators = sorted(
-        supporter_to_creators,
-        key=lambda s2c: (
-            not s2c.want_to_pay,
-            s2c.creator.display_name.lower(),
-            s2c.creator.slug,
-        ),
     )
     next_payments = dict(
         db.query(PaymentMethod.creator_id, func.sum(Payment.payment_amount))
@@ -419,6 +365,15 @@ def index():
         .join(PaymentMethod)
         .group_by(PaymentMethod.creator_id)
         .all()
+    )
+    supporter_to_creators = sorted(
+        supporter_to_creators,
+        key=lambda s2c: (
+            not s2c.want_to_pay,
+            -s2c.payment_amount_outstanding,
+            s2c.creator.display_name.lower(),
+            s2c.creator.slug,
+        ),
     )
     paid_to_date = (
         db.query(func.sum(Payment.payment_amount))

@@ -13,8 +13,13 @@ def test_new_payment_default_created_at(test_db_session):
 
 
 def test_payment_timezone_awareness(test_db_session, test_payment_method):
+    supporter = app.Supporter()
+    test_db_session.add(supporter)
+    test_db_session.commit()
+
     # Try a timezone unaware datetime and observe an error.
     payment = app.Payment(
+        supporter=supporter,
         payment_amount=1,
         created_at=datetime.utcnow(),
         payment_method=test_payment_method,
@@ -27,6 +32,7 @@ def test_payment_timezone_awareness(test_db_session, test_payment_method):
 
     # Default value should be timezone aware.
     payment = app.Payment(
+        supporter=supporter,
         payment_amount=1,
         payment_method=test_payment_method,
         created_at=None,
@@ -44,6 +50,7 @@ def test_payment_timezone_awareness(test_db_session, test_payment_method):
     # Set a timezone aware value
     created_at = datetime.now(tz=UTC)
     payment = app.Payment(
+        supporter=supporter,
         payment_amount=1,
         payment_method=test_payment_method,
         created_at=created_at,

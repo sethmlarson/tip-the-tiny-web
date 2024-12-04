@@ -1,22 +1,19 @@
 {% extends "base.html" %}
 {% block content %}
 <p>
-    <button>Settle Up</button>
-    <button hx-post="/api/supporters/distribute-budget">Distribute</button>
-    <button>Import from OPML</button>
-</p>
-<p>
 <table>
     <tr>
-        <th>Budget / Month</th>
-        <th>Pending</th>
-        <th>Paid to Date</th>
+        <th><span title="Tip the Tiny Web">💰↘️🌐</span></th>
+        <th colspan="2">Budget / Month</th>
+        <th>Next Balance</th>
+        <th>Next Payment</th>
     </tr>
     <tr>
-    <td style="font-variant-numeric: tabular-nums;">
-        <form hx-put="/api/supporters/budget-per-month" hx-trigger="change" hx-swap="none">
+        <td></td>
+    <td style="font-variant-numeric: tabular-nums;" colspan="2">
+        <form hx-put="/api/supporters/budget-per-month" hx-trigger="change" hx-swap="none" style="display: inline;">
         $<input name="value" type="number" value="{{ supporter.budget_per_month // 100 }}" min="0" step="1" autocomplete="off"/>
-        </form>
+        </form> ➡️
     </td>
     <td style="font-variant-numeric: tabular-nums;">
         ${{ next_budget // 100 }}.{{ str(next_budget % 100).zfill(2) }}
@@ -25,20 +22,21 @@
         ${{ paid_to_date // 100 }}
     </td>
     </tr>
-</table>
-</p>
-<p>
-<table>
+    <tr>
+        <td></td>
+        <td colspan="2"></td>
+        <td><center><button hx-post="/api/supporters/distribute-budget" hx-swap="none">Distribute ⬇️</button></center></td>
+        <td><center><button>Settle Up 💸</button></center></td>
+    </tr>
     <tr>
         <th>Pay?</th>
-        <th>Creator</th>
-        <th>Pending</th>
+        <th colspan="2">Creator</th>
         <th>Balance</th>
+        <th>Ready to Pay</th>
     </tr>
     {% for supporter_to_creator in supporter_to_creators %}
     <tr>
         <td>
-            <center>
                 <input
                         type="checkbox"
                         value="true"
@@ -49,12 +47,15 @@
                         {% if supporter_to_creator.want_to_pay %}
                         checked
                         {% endif %}/>
-            </center>
         </td>
-        <td><a href="{{ url_for('creator', creator_slug=supporter_to_creator.creator.slug) }}">{{ supporter_to_creator.creator.display_name }}</a>
+        <td colspan="2"><a href="{{ url_for('creator', creator_slug=supporter_to_creator.creator.slug) }}">{{ supporter_to_creator.creator.display_name }}</a>
         </td>
-        <td style="font-variant-numeric: tabular-nums;">${{ next_payments.get(supporter_to_creator.creator_id, 0) // 100 }}</td>
         <td style="font-variant-numeric: tabular-nums;">${{ supporter_to_creator.payment_amount_outstanding // 100 }}.{{ str(supporter_to_creator.payment_amount_outstanding % 100).zfill(2) }}</td>
+        {% if (supporter_to_creator.creator.payment_methods | length > 0) or supporter_to_creator.payment_amount_outstanding < 100 %}
+        <td style="font-variant-numeric: tabular-nums;">${{ next_payments.get(supporter_to_creator.creator_id, 0) // 100 }}</td>
+        {% else %}
+        <td>$0 ⚠️</td>
+        {% endif %}
     </tr>
     {% endfor %}
 </table>

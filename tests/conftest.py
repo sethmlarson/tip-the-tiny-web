@@ -1,17 +1,32 @@
+import os
+import shutil
+import tempfile
+
 import pytest
+from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from app import BaseModel, Creator, GitHubSponsorsPaymentMethod, db_engine
+import app
+from app import BaseModel, Creator, GitHubSponsorsPaymentMethod
 
 
 @pytest.fixture(scope="function")
 def test_db_session() -> Session:
-    BaseModel.metadata.create_all(db_engine)
+    db_filepath = f"{tempfile.mkdtemp()}/app.sqlite"
     try:
-        with Session(bind=db_engine) as session:
-            yield session
+        db_engine = create_engine(f"sqlite:///{db_filepath}")
+        BaseModel.metadata.create_all(db_engine)
+        prev_session = app.db
+        try:
+            with Session(bind=db_engine) as session:
+                app.db = session
+                yield session
+        finally:
+            app.db = prev_session
+            BaseModel.metadata.drop_all(db_engine)
+
     finally:
-        BaseModel.metadata.drop_all(db_engine)
+        shutil.rmtree(os.path.dirname(db_filepath))
 
 
 @pytest.fixture(scope="function")
