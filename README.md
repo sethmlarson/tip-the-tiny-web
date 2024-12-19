@@ -1,9 +1,6 @@
 # Tip the Tiny Web
 
-My journey into tipping the tiny web.
-
-This service is free of ads, tracking, subscriptions, fees,
-micropayments, scalping, parasitic behavior, and data walls.
+My journey to financially support all the digital content I enjoy without ads, tracking, or parasitic behavior. 
 
 ## How this works
 
