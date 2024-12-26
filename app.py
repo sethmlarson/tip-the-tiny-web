@@ -393,6 +393,7 @@ def index():
         "index.html",
         str=str,
         sum=sum,
+        len=len,
         supporter=supporter,
         supporter_to_creators=supporter_to_creators,
         next_budget=next_budget,

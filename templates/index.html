@@ -25,7 +25,7 @@
     <tr>
         <td></td>
         <td colspan="2"></td>
-        <td><center><button hx-post="/api/supporters/distribute-budget" hx-swap="none">Distribute ⬇️</button></center></td>
+        <td><center><button hx-post="/api/supporters/distribute-budget" hx-swap="none" {% if len(supporter_to_creators) > next_budget %}disabled{% endif %}>Distribute ⬇️</button></center></td>
         <td><center><button>Settle Up 💸</button></center></td>
     </tr>
     <tr>
