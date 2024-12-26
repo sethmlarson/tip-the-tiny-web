@@ -97,6 +97,7 @@ class BudgetAllocation(BaseModel):
     )
     supporter: Mapped["Supporter"] = relationship(back_populates="budget_allocs")
     allocation_amount: Mapped[int] = mapped_column(nullable=False)
+    undistributed_amount: Mapped[int] = mapped_column(nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(
         type_=TzAwareDatetime, nullable=False, default=utcnow()
     )
@@ -278,7 +279,10 @@ def calculate_next_budget_alloc(supporter: Supporter) -> BudgetAllocation | None
             days_since_last_alloc = (now_in_utc - last_allocated_at).total_seconds() / (
                 24 * 60 * 60
             )
-            alloc_amount = int(budget_per_day * days_since_last_alloc)
+            alloc_amount = (
+                int(budget_per_day * days_since_last_alloc)
+                + last_budget_alloc.undistributed_amount
+            )
 
         # No money to allocate!
         if alloc_amount <= 0:
@@ -292,12 +296,8 @@ def calculate_next_budget_alloc(supporter: Supporter) -> BudgetAllocation | None
             )
             .count()
         )
-        # Don't allocate if less than a cent per
-        # creator or no supported creators.
-        if (
-            number_of_supported_creators > alloc_amount
-            or number_of_supported_creators == 0
-        ):
+        # Don't allocate if no supported creators.
+        if number_of_supported_creators <= 0:
             return None
 
         return BudgetAllocation(
@@ -318,9 +318,6 @@ def distribute_budget_alloc(
                 SupporterToCreator.supporter_id == supporter.id,
                 SupporterToCreator.want_to_pay,
             )
-            # Order by creator with least outstanding to pay
-            # partial dollars to those with the least first.
-            .order_by(SupporterToCreator.payment_amount_outstanding.asc())
             .all()
         )
 
@@ -342,7 +339,11 @@ def distribute_budget_alloc(
 
         # Commit the BudgetAllocation to the record
         # after updating how much we actually distributed.
-        budget_alloc.allocation_amount = budget_per_creator * number_of_creators
+        distributed_amount = budget_per_creator * number_of_creators
+        budget_alloc.undistributed_amount = (
+            budget_alloc.allocation_amount - distributed_amount
+        )
+        budget_alloc.allocation_amount = distributed_amount
         db.add(budget_alloc)
         db.commit()
 
@@ -381,6 +382,11 @@ def index():
         .scalar()
         or 0
     )
+    total_payment_amount_outstanding = (
+        db.query(func.sum(SupporterToCreator.payment_amount_outstanding))
+        .where(SupporterToCreator.supporter_id == supporter.id)
+        .scalar()
+    ) or 0
     next_budget_alloc = calculate_next_budget_alloc(supporter)
     next_budget = next_budget_alloc.allocation_amount if next_budget_alloc else 0
     return render_template(
@@ -392,6 +398,7 @@ def index():
         next_budget=next_budget,
         next_payments=next_payments,
         paid_to_date=paid_to_date,
+        total_payment_amount_outstanding=total_payment_amount_outstanding,
     )
 
 
@@ -472,7 +479,9 @@ def api_supporters_distribute_budget():
         if budget_alloc is None:
             return make_response("", 200)
         distribute_budget_alloc(supporter, budget_alloc)
-    return make_response("", 200)
+    resp = make_response("", 200)
+    resp.headers["HX-Refresh"] = "true"
+    return resp
 
 
 @web.route("/api/supporters/budget-per-month", methods=["PUT"])

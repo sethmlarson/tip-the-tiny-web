@@ -34,6 +34,14 @@
         <th>Balance</th>
         <th>Ready to Pay</th>
     </tr>
+    {% if supporter_to_creators | length > 2 %}
+    <tr>
+        <td></td>
+        <td colspan="2">Everyone</td>
+        <td>${{ total_payment_amount_outstanding // 100 }}.{{ str(total_payment_amount_outstanding % 100).zfill(2) }}</td>
+        <td>$0</td>
+    </tr>
+    {% endif %}
     {% for supporter_to_creator in supporter_to_creators %}
     <tr>
         <td>
